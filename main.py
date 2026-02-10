@@ -34,7 +34,6 @@ def translate_hindi(text):
 def translate_hindi_df(df):
     df = df.copy()
     cache = {}
-
     for col in df.columns:
         if df[col].dtype == object:
             for i, val in df[col].items():
@@ -44,25 +43,24 @@ def translate_hindi_df(df):
                     df.at[i, col] = cache[val]
     return df
 
-# ================= PATH SETUP =================
+# ================= PINCODE MASTER =================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PINCODE_FILE = os.path.join(BASE_DIR, "allStateData.csv")
 
-# ================= LOAD PINCODE MASTER =================
 pin_df = pd.read_csv(PINCODE_FILE, header=None, dtype=str)
-
-PIN_COL = 4
-DIST_COL = 7
-STATE_COL = 8
-
-pin_df = pin_df[[PIN_COL, DIST_COL, STATE_COL]]
+pin_df = pin_df[[4, 7, 8]]
 pin_df.columns = ["pincode", "district", "state"]
 
 pin_df["pincode"] = pin_df["pincode"].astype(str).str.strip()
 pin_df = pin_df[pin_df["pincode"].str.fullmatch(r"\d{6}")]
 pin_df = pin_df.drop_duplicates(subset="pincode", keep="first")
 
-PINCODE_LOOKUP = pin_df.set_index("pincode")
+# ✅ CRITICAL FIX
+PINCODE_LOOKUP = (
+    pin_df
+    .set_index("pincode")[["state", "district"]]
+    .to_dict("index")
+)
 
 # ================= HELPERS =================
 def normalize_phone(val):
@@ -75,7 +73,7 @@ def clean_pincode(val):
     m = re.search(r"\b\d{6}\b", str(val))
     return m.group(0) if m else ""
 
-# ================= CLEAN DATAFRAME (FINAL SAFE VERSION) =================
+# ================= CLEAN DATAFRAME =================
 def clean_dataframe(df):
     df = df.copy()
 
@@ -96,50 +94,227 @@ def clean_dataframe(df):
     pcol = pin_cols[0]
     df[pcol] = df[pcol].apply(clean_pincode)
 
-    # Decide state/district columns
     state_col = state_cols[0] if state_cols else "State"
     dist_col = dist_cols[0] if dist_cols else "District"
 
     if state_col not in df.columns:
         df[state_col] = ""
-
     if dist_col not in df.columns:
         df[dist_col] = ""
 
-    # Fill state/district ONLY when empty AND pincode valid
     for i, pin in df[pcol].items():
-        if pin in PINCODE_LOOKUP.index:
+        info = PINCODE_LOOKUP.get(pin)
+        if info:
             if not str(df.at[i, state_col]).strip():
-                df.at[i, state_col] = PINCODE_LOOKUP.loc[pin, "state"]
+                df.at[i, state_col] = info["state"]
             if not str(df.at[i, dist_col]).strip():
-                df.at[i, dist_col] = PINCODE_LOOKUP.loc[pin, "district"]
+                df.at[i, dist_col] = info["district"]
 
     return df
 
-# ================= PDF TABLE TO DF =================
-def pdf_to_df(path):
+# ================= PDF / IMAGE =================
+def pdf_to_df(file):
     tables = []
-    with pdfplumber.open(path) as pdf:
+    with pdfplumber.open(file) as pdf:
         for page in pdf.pages:
             table = page.extract_table()
             if table:
                 tables.append(pd.DataFrame(table[1:], columns=table[0]))
     return pd.concat(tables, ignore_index=True) if tables else pd.DataFrame()
 
-# ================= IMAGE TABLE TO DF =================
-def image_to_df(path):
+def image_to_df(file):
     data = pytesseract.image_to_data(
-        Image.open(path),
+        Image.open(file),
         output_type=pytesseract.Output.DATAFRAME
     )
     data = data.dropna(subset=["text"])
 
     rows = {}
     for _, row in data.iterrows():
-        key = (row["block_num"], row["line_num"])
-        rows.setdefault(key, []).append(row["text"])
+        rows.setdefault((row["block_num"], row["line_num"]), []).append(row["text"])
 
     return pd.DataFrame({"pincode": [" ".join(v) for v in rows.values()]})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+#iske uper or feature wala code 
+
+# import os
+# import re
+# import pandas as pd
+# import pytesseract
+# import pdfplumber
+# from PIL import Image
+
+# # ================= HINDI TO ENGLISH =================
+# from googletrans import Translator
+# from indic_transliteration import sanscript
+# from indic_transliteration.sanscript import transliterate
+
+# translator = Translator()
+# DEVANAGARI_REGEX = re.compile(r"[\u0900-\u097F]")
+
+# def is_hindi(text):
+#     return isinstance(text, str) and bool(DEVANAGARI_REGEX.search(text))
+
+# def transliterate_hindi(text):
+#     try:
+#         return transliterate(text, sanscript.DEVANAGARI, sanscript.ITRANS).title()
+#     except Exception:
+#         return text
+
+# def translate_hindi(text):
+#     if not text or len(str(text)) < 4:
+#         return text
+#     try:
+#         translated = translator.translate(text, src="hi", dest="en").text
+#         return translated if not is_hindi(translated) else transliterate_hindi(text)
+#     except Exception:
+#         return transliterate_hindi(text)
+
+# def translate_hindi_df(df):
+#     df = df.copy()
+#     cache = {}
+
+#     for col in df.columns:
+#         if df[col].dtype == object:
+#             for i, val in df[col].items():
+#                 if is_hindi(val):
+#                     if val not in cache:
+#                         cache[val] = translate_hindi(val)
+#                     df.at[i, col] = cache[val]
+#     return df
+
+# # ================= PATH SETUP =================
+# BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+# PINCODE_FILE = os.path.join(BASE_DIR, "allStateData.csv")
+
+# # ================= LOAD PINCODE MASTER =================
+# pin_df = pd.read_csv(PINCODE_FILE, header=None, dtype=str)
+
+# PIN_COL = 4
+# DIST_COL = 7
+# STATE_COL = 8
+
+# pin_df = pin_df[[PIN_COL, DIST_COL, STATE_COL]]
+# pin_df.columns = ["pincode", "district", "state"]
+
+# pin_df["pincode"] = pin_df["pincode"].astype(str).str.strip()
+# pin_df = pin_df[pin_df["pincode"].str.fullmatch(r"\d{6}")]
+# pin_df = pin_df.drop_duplicates(subset="pincode", keep="first")
+
+# PINCODE_LOOKUP = pin_df.set_index("pincode")
+
+# # ================= HELPERS =================
+# def normalize_phone(val):
+#     digits = re.sub(r"\D", "", str(val)) if val else ""
+#     return digits[-10:] if len(digits) >= 10 else ""
+
+# def clean_pincode(val):
+#     if not val:
+#         return ""
+#     m = re.search(r"\b\d{6}\b", str(val))
+#     return m.group(0) if m else ""
+
+# # ================= CLEAN DATAFRAME (FINAL SAFE VERSION) =================
+# def clean_dataframe(df):
+#     df = df.copy()
+
+#     col_map = {c: re.sub(r"[^a-z0-9]", "", c.lower()) for c in df.columns}
+
+#     pin_cols = [c for c, n in col_map.items() if "pin" in n]
+#     state_cols = [c for c, n in col_map.items() if n == "state"]
+#     dist_cols = [c for c, n in col_map.items() if "district" in n]
+
+#     # Normalize phone numbers
+#     for col, cname in col_map.items():
+#         if "phone" in cname or "mobile" in cname:
+#             df[col] = df[col].apply(normalize_phone)
+
+#     if not pin_cols:
+#         return df
+
+#     pcol = pin_cols[0]
+#     df[pcol] = df[pcol].apply(clean_pincode)
+
+#     # Decide state/district columns
+#     state_col = state_cols[0] if state_cols else "State"
+#     dist_col = dist_cols[0] if dist_cols else "District"
+
+#     if state_col not in df.columns:
+#         df[state_col] = ""
+
+#     if dist_col not in df.columns:
+#         df[dist_col] = ""
+
+#     # Fill state/district ONLY when empty AND pincode valid
+#     for i, pin in df[pcol].items():
+#         if pin in PINCODE_LOOKUP.index:
+#             if not str(df.at[i, state_col]).strip():
+#                 df.at[i, state_col] = PINCODE_LOOKUP.loc[pin, "state"]
+#             if not str(df.at[i, dist_col]).strip():
+#                 df.at[i, dist_col] = PINCODE_LOOKUP.loc[pin, "district"]
+
+#     return df
+
+# # ================= PDF TABLE TO DF =================
+# def pdf_to_df(path):
+#     tables = []
+#     with pdfplumber.open(path) as pdf:
+#         for page in pdf.pages:
+#             table = page.extract_table()
+#             if table:
+#                 tables.append(pd.DataFrame(table[1:], columns=table[0]))
+#     return pd.concat(tables, ignore_index=True) if tables else pd.DataFrame()
+
+# # ================= IMAGE TABLE TO DF =================
+# def image_to_df(path):
+#     data = pytesseract.image_to_data(
+#         Image.open(path),
+#         output_type=pytesseract.Output.DATAFRAME
+#     )
+#     data = data.dropna(subset=["text"])
+
+#     rows = {}
+#     for _, row in data.iterrows():
+#         key = (row["block_num"], row["line_num"])
+#         rows.setdefault(key, []).append(row["text"])
+
+#     return pd.DataFrame({"pincode": [" ".join(v) for v in rows.values()]})
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
