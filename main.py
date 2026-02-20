@@ -9,9 +9,13 @@ from PIL import Image
 import cv2
 import numpy as np
 
-import pytesseract
+# import pytesseract
 
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+import easyocr
+
+reader = easyocr.Reader(['en'], gpu=False)
 
 
 # ================= HINDI TO ENGLISH =================
@@ -219,27 +223,74 @@ def pdf_to_df(file):
 
 #     return df
 
+# def image_to_df(file):
+
+#     # Convert uploaded file to OpenCV image
+#     file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+#     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+
+#     if img is None:
+#         return pd.DataFrame()
+
+#     # Preprocessing
+#     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#     gray = cv2.GaussianBlur(gray, (3, 3), 0)
+
+#     # Proper threshold fix
+#     _, thresh = cv2.threshold(gray, 170, 255, cv2.THRESH_BINARY)
+
+#     # OCR
+#     text = pytesseract.image_to_string(thresh, config="--psm 6")
+
+#     # Split into lines
+#     lines = [line.strip() for line in text.split("\n") if line.strip()]
+
+#     if not lines:
+#         return pd.DataFrame()
+
+#     table = []
+
+#     for line in lines:
+#         words = line.split()
+
+#         # Skip ribbon/menu noise (very small lines)
+#         if len(words) < 2:
+#             continue
+
+#         table.append(words)
+
+#     if not table:
+#         return pd.DataFrame()
+
+#     # Prevent 70+ column explosion
+#     max_cols = min(max(len(r) for r in table), 12)
+
+#     cleaned_table = []
+#     for row in table:
+#         row = row[:max_cols]
+#         row += [""] * (max_cols - len(row))
+#         cleaned_table.append(row)
+
+#     df = pd.DataFrame(cleaned_table)
+
+#     return df
+
 def image_to_df(file):
 
-    # Convert uploaded file to OpenCV image
     file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
     if img is None:
         return pd.DataFrame()
 
-    # Preprocessing
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+    # EasyOCR extraction
+    results = reader.readtext(img)
 
-    # Proper threshold fix
-    _, thresh = cv2.threshold(gray, 170, 255, cv2.THRESH_BINARY)
+    lines = []
 
-    # OCR
-    text = pytesseract.image_to_string(thresh, config="--psm 6")
-
-    # Split into lines
-    lines = [line.strip() for line in text.split("\n") if line.strip()]
+    for (bbox, text, prob) in results:
+        if prob > 0.4:   # confidence filter
+            lines.append(text.strip())
 
     if not lines:
         return pd.DataFrame()
@@ -248,29 +299,21 @@ def image_to_df(file):
 
     for line in lines:
         words = line.split()
-
-        # Skip ribbon/menu noise (very small lines)
-        if len(words) < 2:
-            continue
-
-        table.append(words)
+        if len(words) >= 2:
+            table.append(words)
 
     if not table:
         return pd.DataFrame()
 
-    # Prevent 70+ column explosion
     max_cols = min(max(len(r) for r in table), 12)
 
-    cleaned_table = []
+    cleaned = []
     for row in table:
         row = row[:max_cols]
         row += [""] * (max_cols - len(row))
-        cleaned_table.append(row)
+        cleaned.append(row)
 
-    df = pd.DataFrame(cleaned_table)
-
-    return df
-
+    return pd.DataFrame(cleaned)
 
 
 
