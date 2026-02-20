@@ -1,8 +1,10 @@
+streamlit
 pandas
+numpy
 pytesseract
+opencv-python-headless
 pdfplumber
 Pillow
 googletrans==4.0.0-rc1
 indic-transliteration
 openpyxl
-streamlit
