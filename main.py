@@ -277,6 +277,10 @@ def pdf_to_df(file):
 
 def image_to_df(file):
 
+    import numpy as np
+    import pandas as pd
+    import cv2
+
     file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
@@ -285,8 +289,8 @@ def image_to_df(file):
 
     h, w, _ = img.shape
 
-    # Remove ribbon (crop top 30%)
-    cropped = img[int(h * 0.30):h, :]
+    # Crop top ribbon
+    cropped = img[int(h * 0.25):h, :]
 
     results = reader.readtext(cropped)
 
@@ -301,50 +305,70 @@ def image_to_df(file):
     if not words:
         return pd.DataFrame()
 
-    # Sort by vertical position
+    # Sort by Y then X
     words.sort(key=lambda x: (x[0], x[1]))
 
-    # Group into lines
-    lines = []
-    current_line = []
+    # Group into rows
+    rows = []
+    current_row = []
     last_y = None
 
     for y, x, text in words:
-        if last_y is None or abs(y - last_y) < 15:
-            current_line.append((x, text))
+        if last_y is None or abs(y - last_y) < 20:
+            current_row.append((x, text))
         else:
-            lines.append(current_line)
-            current_line = [(x, text)]
+            rows.append(current_row)
+            current_row = [(x, text)]
         last_y = y
 
-    if current_line:
-        lines.append(current_line)
+    if current_row:
+        rows.append(current_row)
 
-    # Sort each line by X position
-    structured = []
-    for line in lines:
-        line.sort(key=lambda x: x[0])
-        structured.append([word for _, word in line])
+    # Collect all X positions
+    all_x = []
+    for row in rows:
+        for x, _ in row:
+            all_x.append(x)
 
-    # Remove garbage lines
-    structured = [row for row in structured if len(row) >= 3]
-
-    if not structured:
+    if not all_x:
         return pd.DataFrame()
 
-    # Detect header (first meaningful row)
-    header = structured[0]
-    data = structured[1:]
+    # Cluster X positions dynamically
+    all_x.sort()
+    columns = []
 
-    max_cols = len(header)
+    threshold = 40  # column gap sensitivity
 
-    cleaned = []
-    for row in data:
-        row = row[:max_cols]
-        row += [""] * (max_cols - len(row))
-        cleaned.append(row)
+    for x in all_x:
+        placed = False
+        for col in columns:
+            if abs(col - x) < threshold:
+                placed = True
+                break
+        if not placed:
+            columns.append(x)
 
-    return pd.DataFrame(cleaned, columns=header)
+    columns.sort()
+
+    # Build structured table
+    table = []
+
+    for row in rows:
+        row_data = [""] * len(columns)
+        for x, text in row:
+            for i, col_x in enumerate(columns):
+                if abs(col_x - x) < threshold:
+                    row_data[i] = text
+                    break
+        table.append(row_data)
+
+    df = pd.DataFrame(table)
+
+    # Remove empty rows
+    df = df.dropna(how="all")
+    df = df[df.apply(lambda r: any(str(x).strip() != "" for x in r), axis=1)]
+
+    return df.reset_index(drop=True)
 
 
 
