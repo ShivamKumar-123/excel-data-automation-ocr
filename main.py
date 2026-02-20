@@ -283,37 +283,58 @@ def image_to_df(file):
     if img is None:
         return pd.DataFrame()
 
-    # EasyOCR extraction
-    results = reader.readtext(img)
+    h, w, _ = img.shape
 
-    lines = []
+    # 🔥 Crop bottom 70% (remove ribbon)
+    cropped = img[int(h * 0.30):h, :]
+
+    results = reader.readtext(cropped)
+
+    rows = []
 
     for (bbox, text, prob) in results:
-        if prob > 0.4:   # confidence filter
-            lines.append(text.strip())
+        if prob > 0.5:
+            rows.append((bbox[0][1], text))  # Y coordinate + text
+
+    if not rows:
+        return pd.DataFrame()
+
+    # Sort by vertical position
+    rows.sort(key=lambda x: x[0])
+
+    # Group words by line
+    lines = []
+    current_line = []
+    last_y = None
+
+    for y, text in rows:
+        if last_y is None or abs(y - last_y) < 20:
+            current_line.append(text)
+        else:
+            lines.append(current_line)
+            current_line = [text]
+        last_y = y
+
+    if current_line:
+        lines.append(current_line)
 
     if not lines:
         return pd.DataFrame()
 
-    table = []
+    # Remove small noise lines
+    cleaned = [line for line in lines if len(line) >= 3]
 
-    for line in lines:
-        words = line.split()
-        if len(words) >= 2:
-            table.append(words)
-
-    if not table:
+    if not cleaned:
         return pd.DataFrame()
 
-    max_cols = min(max(len(r) for r in table), 12)
+    max_cols = max(len(r) for r in cleaned)
 
-    cleaned = []
-    for row in table:
-        row = row[:max_cols]
+    formatted = []
+    for row in cleaned:
         row += [""] * (max_cols - len(row))
-        cleaned.append(row)
+        formatted.append(row)
 
-    return pd.DataFrame(cleaned)
+    return pd.DataFrame(formatted)
 
 
 
