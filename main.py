@@ -184,94 +184,105 @@ def pdf_to_df(file):
 
 
 
-# def image_to_df(file):
-#     file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
-#     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
-
-#     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-#     thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)[1]
-
-#     text = pytesseract.image_to_string(thresh, config="--psm 6")
-
-#     lines = [line.strip() for line in text.split("\n") if line.strip()]
-
-#     data = []
-
-#     for line in lines:
-#         parts = line.split()
-
-#         if len(parts) >= 4:
-
-#             # Remove row numbers if present
-#             if parts[0].isdigit():
-#                 parts = parts[1:]
-
-#             customer_id = parts[0]
-#             region = parts[-1]
-#             gender = parts[-2]
-#             customer = " ".join(parts[1:-2])
-
-#             data.append([customer_id, customer, gender, region])
-
-#     if not data:
-#         return pd.DataFrame()
-
-#     df = pd.DataFrame(
-#         data,
-#         columns=["Customer ID", "Customer", "Gender", "Region"]
-#     )
-
-#     return df
 
 # def image_to_df(file):
 
-#     # Convert uploaded file to OpenCV image
+    
+
+#     reader = easyocr.Reader(['en'], gpu=False)
+
+#     # Read image
 #     file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
 #     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
 #     if img is None:
 #         return pd.DataFrame()
 
-#     # Preprocessing
 #     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-#     gray = cv2.GaussianBlur(gray, (3, 3), 0)
+#     blur = cv2.GaussianBlur(gray, (3,3), 0)
 
-#     # Proper threshold fix
-#     _, thresh = cv2.threshold(gray, 170, 255, cv2.THRESH_BINARY)
+#     # Adaptive threshold (better than simple threshold)
+#     thresh = cv2.adaptiveThreshold(
+#         blur, 255,
+#         cv2.ADAPTIVE_THRESH_MEAN_C,
+#         cv2.THRESH_BINARY_INV,
+#         15, 4
+#     )
 
-#     # OCR
-#     text = pytesseract.image_to_string(thresh, config="--psm 6")
+#     # Detect horizontal lines
+#     horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40,1))
+#     detect_horizontal = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horizontal_kernel)
 
-#     # Split into lines
-#     lines = [line.strip() for line in text.split("\n") if line.strip()]
+#     # Detect vertical lines
+#     vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,40))
+#     detect_vertical = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vertical_kernel)
 
-#     if not lines:
-#         return pd.DataFrame()
+#     # Combine lines
+#     table_mask = cv2.add(detect_horizontal, detect_vertical)
 
-#     table = []
+#     # Find contours (cells)
+#     contours, _ = cv2.findContours(
+#         table_mask,
+#         cv2.RETR_TREE,
+#         cv2.CHAIN_APPROX_SIMPLE
+#     )
 
-#     for line in lines:
-#         words = line.split()
+#     cells = []
 
-#         # Skip ribbon/menu noise (very small lines)
-#         if len(words) < 2:
+#     for cnt in contours:
+#         x, y, w, h = cv2.boundingRect(cnt)
+
+#         # Filter small noise
+#         if w < 40 or h < 20:
 #             continue
 
-#         table.append(words)
+#         cells.append((x, y, w, h))
 
-#     if not table:
+#     if not cells:
 #         return pd.DataFrame()
 
-#     # Prevent 70+ column explosion
-#     max_cols = min(max(len(r) for r in table), 12)
+#     # Sort by Y then X
+#     cells = sorted(cells, key=lambda b: (b[1], b[0]))
 
-#     cleaned_table = []
-#     for row in table:
-#         row = row[:max_cols]
-#         row += [""] * (max_cols - len(row))
-#         cleaned_table.append(row)
+#     rows = []
+#     current_row = []
+#     last_y = None
 
-#     df = pd.DataFrame(cleaned_table)
+#     for (x, y, w, h) in cells:
+#         if last_y is None or abs(y - last_y) < 15:
+#             current_row.append((x, y, w, h))
+#         else:
+#             rows.append(current_row)
+#             current_row = [(x, y, w, h)]
+#         last_y = y
+
+#     if current_row:
+#         rows.append(current_row)
+
+#     # OCR each cell
+#     table_data = []
+
+#     for row in rows:
+#         row = sorted(row, key=lambda b: b[0])
+#         row_text = []
+
+#         for (x, y, w, h) in row:
+#             cell_img = img[y:y+h, x:x+w]
+
+#             result = reader.readtext(cell_img)
+
+#             text = " ".join([r[1] for r in result if r[2] > 0.4])
+
+#             row_text.append(text.strip())
+
+#         table_data.append(row_text)
+
+#     df = pd.DataFrame(table_data)
+
+#     # Remove fully empty rows
+#     df = df[df.apply(lambda r: any(str(x).strip() != "" for x in r), axis=1)]
+
+#     df.reset_index(drop=True, inplace=True)
 
 #     return df
 
@@ -288,94 +299,62 @@ def image_to_df(file):
     if img is None:
         return pd.DataFrame()
 
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    blur = cv2.GaussianBlur(gray, (3,3), 0)
+    results = reader.readtext(img)
 
-    # Adaptive threshold (better than simple threshold)
-    thresh = cv2.adaptiveThreshold(
-        blur, 255,
-        cv2.ADAPTIVE_THRESH_MEAN_C,
-        cv2.THRESH_BINARY_INV,
-        15, 4
-    )
-
-    # Detect horizontal lines
-    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40,1))
-    detect_horizontal = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horizontal_kernel)
-
-    # Detect vertical lines
-    vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,40))
-    detect_vertical = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vertical_kernel)
-
-    # Combine lines
-    table_mask = cv2.add(detect_horizontal, detect_vertical)
-
-    # Find contours (cells)
-    contours, _ = cv2.findContours(
-        table_mask,
-        cv2.RETR_TREE,
-        cv2.CHAIN_APPROX_SIMPLE
-    )
-
-    cells = []
-
-    for cnt in contours:
-        x, y, w, h = cv2.boundingRect(cnt)
-
-        # Filter small noise
-        if w < 40 or h < 20:
-            continue
-
-        cells.append((x, y, w, h))
-
-    if not cells:
+    if not results:
         return pd.DataFrame()
 
-    # Sort by Y then X
-    cells = sorted(cells, key=lambda b: (b[1], b[0]))
+    # Collect boxes + text
+    boxes = []
+    for (bbox, text, conf) in results:
+        if conf < 0.4:
+            continue
+
+        x_min = min([p[0] for p in bbox])
+        y_min = min([p[1] for p in bbox])
+        x_max = max([p[0] for p in bbox])
+        y_max = max([p[1] for p in bbox])
+
+        boxes.append({
+            "text": text.strip(),
+            "x": x_min,
+            "y": y_min,
+            "h": y_max - y_min
+        })
+
+    # Sort by Y first (row detection)
+    boxes = sorted(boxes, key=lambda b: b["y"])
 
     rows = []
     current_row = []
     last_y = None
+    row_threshold = 20  # controls row separation
 
-    for (x, y, w, h) in cells:
-        if last_y is None or abs(y - last_y) < 15:
-            current_row.append((x, y, w, h))
+    for box in boxes:
+        if last_y is None:
+            current_row.append(box)
+            last_y = box["y"]
+        elif abs(box["y"] - last_y) < row_threshold:
+            current_row.append(box)
         else:
             rows.append(current_row)
-            current_row = [(x, y, w, h)]
-        last_y = y
+            current_row = [box]
+            last_y = box["y"]
 
     if current_row:
         rows.append(current_row)
 
-    # OCR each cell
+    # Now sort each row by X (column order)
     table_data = []
-
     for row in rows:
-        row = sorted(row, key=lambda b: b[0])
-        row_text = []
-
-        for (x, y, w, h) in row:
-            cell_img = img[y:y+h, x:x+w]
-
-            result = reader.readtext(cell_img)
-
-            text = " ".join([r[1] for r in result if r[2] > 0.4])
-
-            row_text.append(text.strip())
-
-        table_data.append(row_text)
+        row_sorted = sorted(row, key=lambda b: b["x"])
+        table_data.append([cell["text"] for cell in row_sorted])
 
     df = pd.DataFrame(table_data)
-
-    # Remove fully empty rows
-    df = df[df.apply(lambda r: any(str(x).strip() != "" for x in r), axis=1)]
 
     df.reset_index(drop=True, inplace=True)
 
     return df
-
 
 
 
