@@ -285,56 +285,66 @@ def image_to_df(file):
 
     h, w, _ = img.shape
 
-    # 🔥 Crop bottom 70% (remove ribbon)
+    # Remove ribbon (crop top 30%)
     cropped = img[int(h * 0.30):h, :]
 
     results = reader.readtext(cropped)
 
-    rows = []
+    words = []
 
     for (bbox, text, prob) in results:
         if prob > 0.5:
-            rows.append((bbox[0][1], text))  # Y coordinate + text
+            x = bbox[0][0]
+            y = bbox[0][1]
+            words.append((y, x, text.strip()))
 
-    if not rows:
+    if not words:
         return pd.DataFrame()
 
     # Sort by vertical position
-    rows.sort(key=lambda x: x[0])
+    words.sort(key=lambda x: (x[0], x[1]))
 
-    # Group words by line
+    # Group into lines
     lines = []
     current_line = []
     last_y = None
 
-    for y, text in rows:
-        if last_y is None or abs(y - last_y) < 20:
-            current_line.append(text)
+    for y, x, text in words:
+        if last_y is None or abs(y - last_y) < 15:
+            current_line.append((x, text))
         else:
             lines.append(current_line)
-            current_line = [text]
+            current_line = [(x, text)]
         last_y = y
 
     if current_line:
         lines.append(current_line)
 
-    if not lines:
+    # Sort each line by X position
+    structured = []
+    for line in lines:
+        line.sort(key=lambda x: x[0])
+        structured.append([word for _, word in line])
+
+    # Remove garbage lines
+    structured = [row for row in structured if len(row) >= 3]
+
+    if not structured:
         return pd.DataFrame()
 
-    # Remove small noise lines
-    cleaned = [line for line in lines if len(line) >= 3]
+    # Detect header (first meaningful row)
+    header = structured[0]
+    data = structured[1:]
 
-    if not cleaned:
-        return pd.DataFrame()
+    max_cols = len(header)
 
-    max_cols = max(len(r) for r in cleaned)
-
-    formatted = []
-    for row in cleaned:
+    cleaned = []
+    for row in data:
+        row = row[:max_cols]
         row += [""] * (max_cols - len(row))
-        formatted.append(row)
+        cleaned.append(row)
 
-    return pd.DataFrame(formatted)
+    return pd.DataFrame(cleaned, columns=header)
 
 
 
