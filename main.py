@@ -5,6 +5,15 @@ import pytesseract
 import pdfplumber
 from PIL import Image
 
+
+import cv2
+import numpy as np
+
+import pytesseract
+
+pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+
+
 # ================= HINDI TO ENGLISH =================
 from googletrans import Translator
 from indic_transliteration import sanscript
@@ -74,10 +83,55 @@ def clean_pincode(val):
     return m.group(0) if m else ""
 
 # ================= CLEAN DATAFRAME =================
+# def clean_dataframe(df):
+#     df = df.copy()
+
+#     col_map = {c: re.sub(r"[^a-z0-9]", "", c.lower()) for c in df.columns}
+
+#     pin_cols = [c for c, n in col_map.items() if "pin" in n]
+#     state_cols = [c for c, n in col_map.items() if n == "state"]
+#     dist_cols = [c for c, n in col_map.items() if "district" in n]
+
+#     # Normalize phone numbers
+#     for col, cname in col_map.items():
+#         if "phone" in cname or "mobile" in cname:
+#             df[col] = df[col].apply(normalize_phone)
+
+#     if not pin_cols:
+#         return df
+
+#     pcol = pin_cols[0]
+#     df[pcol] = df[pcol].apply(clean_pincode)
+
+#     state_col = state_cols[0] if state_cols else "State"
+#     dist_col = dist_cols[0] if dist_cols else "District"
+
+#     if state_col not in df.columns:
+#         df[state_col] = ""
+#     if dist_col not in df.columns:
+#         df[dist_col] = ""
+
+#     for i, pin in df[pcol].items():
+#         info = PINCODE_LOOKUP.get(pin)
+#         if info:
+#             if not str(df.at[i, state_col]).strip():
+#                 df.at[i, state_col] = info["state"]
+#             if not str(df.at[i, dist_col]).strip():
+#                 df.at[i, dist_col] = info["district"]
+
+#     return df
+
 def clean_dataframe(df):
     df = df.copy()
 
-    col_map = {c: re.sub(r"[^a-z0-9]", "", c.lower()) for c in df.columns}
+    # ✅ Convert all column names to string first
+    df.columns = df.columns.map(str)
+
+    # Normalize column names
+    col_map = {
+        c: re.sub(r"[^a-z0-9]", "", str(c).lower())
+        for c in df.columns
+    }
 
     pin_cols = [c for c, n in col_map.items() if "pin" in n]
     state_cols = [c for c, n in col_map.items() if n == "state"]
@@ -88,6 +142,7 @@ def clean_dataframe(df):
         if "phone" in cname or "mobile" in cname:
             df[col] = df[col].apply(normalize_phone)
 
+    # If no pincode column found, just return cleaned dataframe
     if not pin_cols:
         return df
 
@@ -112,6 +167,7 @@ def clean_dataframe(df):
 
     return df
 
+
 # ================= PDF / IMAGE =================
 def pdf_to_df(file):
     tables = []
@@ -122,18 +178,123 @@ def pdf_to_df(file):
                 tables.append(pd.DataFrame(table[1:], columns=table[0]))
     return pd.concat(tables, ignore_index=True) if tables else pd.DataFrame()
 
+
+
+# def image_to_df(file):
+#     file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+#     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
+
+#     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+#     thresh = cv2.threshold(gray, 150, 255, cv2.THRESH_BINARY)[1]
+
+#     text = pytesseract.image_to_string(thresh, config="--psm 6")
+
+#     lines = [line.strip() for line in text.split("\n") if line.strip()]
+
+#     data = []
+
+#     for line in lines:
+#         parts = line.split()
+
+#         if len(parts) >= 4:
+
+#             # Remove row numbers if present
+#             if parts[0].isdigit():
+#                 parts = parts[1:]
+
+#             customer_id = parts[0]
+#             region = parts[-1]
+#             gender = parts[-2]
+#             customer = " ".join(parts[1:-2])
+
+#             data.append([customer_id, customer, gender, region])
+
+#     if not data:
+#         return pd.DataFrame()
+
+#     df = pd.DataFrame(
+#         data,
+#         columns=["Customer ID", "Customer", "Gender", "Region"]
+#     )
+
+#     return df
+
 def image_to_df(file):
-    data = pytesseract.image_to_data(
-        Image.open(file),
-        output_type=pytesseract.Output.DATAFRAME
-    )
-    data = data.dropna(subset=["text"])
 
-    rows = {}
-    for _, row in data.iterrows():
-        rows.setdefault((row["block_num"], row["line_num"]), []).append(row["text"])
+    # Convert uploaded file to OpenCV image
+    file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
+    img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
-    return pd.DataFrame({"pincode": [" ".join(v) for v in rows.values()]})
+    if img is None:
+        return pd.DataFrame()
+
+    # Preprocessing
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.GaussianBlur(gray, (3, 3), 0)
+
+    # Proper threshold fix
+    _, thresh = cv2.threshold(gray, 170, 255, cv2.THRESH_BINARY)
+
+    # OCR
+    text = pytesseract.image_to_string(thresh, config="--psm 6")
+
+    # Split into lines
+    lines = [line.strip() for line in text.split("\n") if line.strip()]
+
+    if not lines:
+        return pd.DataFrame()
+
+    table = []
+
+    for line in lines:
+        words = line.split()
+
+        # Skip ribbon/menu noise (very small lines)
+        if len(words) < 2:
+            continue
+
+        table.append(words)
+
+    if not table:
+        return pd.DataFrame()
+
+    # Prevent 70+ column explosion
+    max_cols = min(max(len(r) for r in table), 12)
+
+    cleaned_table = []
+    for row in table:
+        row = row[:max_cols]
+        row += [""] * (max_cols - len(row))
+        cleaned_table.append(row)
+
+    df = pd.DataFrame(cleaned_table)
+
+    return df
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
