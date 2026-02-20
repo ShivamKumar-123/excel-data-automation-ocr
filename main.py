@@ -277,98 +277,104 @@ def pdf_to_df(file):
 
 def image_to_df(file):
 
-    import numpy as np
-    import pandas as pd
-    import cv2
+    
 
+    reader = easyocr.Reader(['en'], gpu=False)
+
+    # Read image
     file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
     img = cv2.imdecode(file_bytes, cv2.IMREAD_COLOR)
 
     if img is None:
         return pd.DataFrame()
 
-    h, w, _ = img.shape
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blur = cv2.GaussianBlur(gray, (3,3), 0)
 
-    # Crop top ribbon
-    cropped = img[int(h * 0.25):h, :]
+    # Adaptive threshold (better than simple threshold)
+    thresh = cv2.adaptiveThreshold(
+        blur, 255,
+        cv2.ADAPTIVE_THRESH_MEAN_C,
+        cv2.THRESH_BINARY_INV,
+        15, 4
+    )
 
-    results = reader.readtext(cropped)
+    # Detect horizontal lines
+    horizontal_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (40,1))
+    detect_horizontal = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, horizontal_kernel)
 
-    words = []
+    # Detect vertical lines
+    vertical_kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (1,40))
+    detect_vertical = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, vertical_kernel)
 
-    for (bbox, text, prob) in results:
-        if prob > 0.5:
-            x = bbox[0][0]
-            y = bbox[0][1]
-            words.append((y, x, text.strip()))
+    # Combine lines
+    table_mask = cv2.add(detect_horizontal, detect_vertical)
 
-    if not words:
+    # Find contours (cells)
+    contours, _ = cv2.findContours(
+        table_mask,
+        cv2.RETR_TREE,
+        cv2.CHAIN_APPROX_SIMPLE
+    )
+
+    cells = []
+
+    for cnt in contours:
+        x, y, w, h = cv2.boundingRect(cnt)
+
+        # Filter small noise
+        if w < 40 or h < 20:
+            continue
+
+        cells.append((x, y, w, h))
+
+    if not cells:
         return pd.DataFrame()
 
     # Sort by Y then X
-    words.sort(key=lambda x: (x[0], x[1]))
+    cells = sorted(cells, key=lambda b: (b[1], b[0]))
 
-    # Group into rows
     rows = []
     current_row = []
     last_y = None
 
-    for y, x, text in words:
-        if last_y is None or abs(y - last_y) < 20:
-            current_row.append((x, text))
+    for (x, y, w, h) in cells:
+        if last_y is None or abs(y - last_y) < 15:
+            current_row.append((x, y, w, h))
         else:
             rows.append(current_row)
-            current_row = [(x, text)]
+            current_row = [(x, y, w, h)]
         last_y = y
 
     if current_row:
         rows.append(current_row)
 
-    # Collect all X positions
-    all_x = []
-    for row in rows:
-        for x, _ in row:
-            all_x.append(x)
-
-    if not all_x:
-        return pd.DataFrame()
-
-    # Cluster X positions dynamically
-    all_x.sort()
-    columns = []
-
-    threshold = 40  # column gap sensitivity
-
-    for x in all_x:
-        placed = False
-        for col in columns:
-            if abs(col - x) < threshold:
-                placed = True
-                break
-        if not placed:
-            columns.append(x)
-
-    columns.sort()
-
-    # Build structured table
-    table = []
+    # OCR each cell
+    table_data = []
 
     for row in rows:
-        row_data = [""] * len(columns)
-        for x, text in row:
-            for i, col_x in enumerate(columns):
-                if abs(col_x - x) < threshold:
-                    row_data[i] = text
-                    break
-        table.append(row_data)
+        row = sorted(row, key=lambda b: b[0])
+        row_text = []
 
-    df = pd.DataFrame(table)
+        for (x, y, w, h) in row:
+            cell_img = img[y:y+h, x:x+w]
 
-    # Remove empty rows
-    df = df.dropna(how="all")
+            result = reader.readtext(cell_img)
+
+            text = " ".join([r[1] for r in result if r[2] > 0.4])
+
+            row_text.append(text.strip())
+
+        table_data.append(row_text)
+
+    df = pd.DataFrame(table_data)
+
+    # Remove fully empty rows
     df = df[df.apply(lambda r: any(str(x).strip() != "" for x in r), axis=1)]
 
-    return df.reset_index(drop=True)
+    df.reset_index(drop=True, inplace=True)
+
+    return df
 
 
 
