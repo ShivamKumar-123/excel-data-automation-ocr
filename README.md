@@ -9,7 +9,7 @@
 ╚═════╝ ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝     ╚═════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝
 ```
 
-# 📊 Data Automation Pro
+# 📊 Data Automation
 
 ### *Transform • Translate • Transcend*
 
