@@ -20,7 +20,7 @@
 [![Pandas](https://img.shields.io/badge/Pandas-Data_Engine-150458?style=for-the-badge&logo=pandas&logoColor=white)](https://pandas.pydata.org)
 [![AI Engine](https://img.shields.io/badge/AI-Dedup_Engine-00C853?style=for-the-badge&logo=tensorflow&logoColor=white)]()
 [![License](https://img.shields.io/badge/License-MIT-4FC3F7?style=for-the-badge)](LICENSE)
-[![Open App](https://img.shields.io/badge/🚀_Open_Live_App-FF4B4B?style=for-the-badge)](https://your-app.streamlit.app)
+[![Open App](https://img.shields.io/badge/🚀_Open_Live_App-FF4B4B?style=for-the-badge)](https://excel-data-automation-ocr.streamlit.app/)
 
 <br>
 
