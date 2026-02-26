@@ -11,3 +11,5 @@ openpyxl
 easyocr
 torch
 torchvision
+rapidfuzz
+scikit-learn

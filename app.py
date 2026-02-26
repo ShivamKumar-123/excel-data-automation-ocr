@@ -4,13 +4,33 @@ import io
 import zipfile
 import os
 import time
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 
 from main import (
     clean_dataframe,
     translate_hindi_df,
     pdf_to_df,
-    image_to_df
+    image_to_df,
+    #enterprise_dedup_engine
+    enterprise_dedup_engine,
+    ultra_fast_dedup
 )
+
+
+
+# ================= DUPLICATE HIGHLIGHT FUNCTION =================
+
+def highlight_duplicates(df, duplicate_indices):
+
+    def highlight_row(row):
+
+        if row.name in duplicate_indices:
+            return ['background-color: #ffcccc'] * len(row)
+
+        return [''] * len(row)
+
+    return df.style.apply(highlight_row, axis=1)
 
 # ================= PAGE CONFIG =================
 st.set_page_config(
@@ -652,6 +672,63 @@ st.markdown("""
         .section-title { font-size: 1.4rem !important; }
         .upload-card { padding: 1.5rem; }
     }
+            
+    .stApp{
+    background:linear-gradient(135deg,#020617,#0f172a);
+    color:white;
+    }
+
+    /* Title */
+
+    .ai-title{
+    font-size:48px;
+    font-weight:800;
+    text-align:center;
+    color:#38bdf8;
+    margin-bottom:10px;
+    }
+
+    /* Subtitle */
+
+    .ai-sub{
+    text-align:center;
+    color:#94a3b8;
+    margin-bottom:40px;
+    }
+
+    /* Card */
+
+    .ai-card{
+    background:rgba(255,255,255,0.05);
+    padding:35px;
+    border-radius:18px;
+    border:1px solid rgba(255,255,255,0.08);
+    box-shadow:0 10px 30px rgba(0,0,0,0.5);
+    }
+
+    /* Result */
+
+    .result-box{
+    background:rgba(16,185,129,0.15);
+    padding:18px;
+    border-radius:12px;
+    border:1px solid rgba(16,185,129,0.3);
+    }
+
+    /* Button */
+
+    .stButton>button{
+    background:linear-gradient(135deg,#6366f1,#06b6d4);
+    color:white;
+    font-size:18px;
+    padding:12px 30px;
+    border-radius:12px;
+    border:none;
+    }
+
+    .stButton>button:hover{
+    transform:scale(1.05);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -1089,6 +1166,287 @@ if range_file and start_row <= end_row:
         )
 elif range_file and start_row > end_row:
     st.error("⚠️ Start row must be less than or equal to end row")
+
+
+# =====================================================
+# 🔹 SECTION 5: MATCH & REMOVE
+# =====================================================
+st.divider()
+
+st.markdown("""
+    <div class="section-header">
+        <div class="section-number">05</div>
+        <div class="section-title">Match & Remove</div>
+        <div class="section-desc">Remove rows from File2 that exist in File1</div>
+    </div>
+""", unsafe_allow_html=True)
+
+st.markdown('<div class="upload-card">', unsafe_allow_html=True)
+
+col1, col2 = st.columns(2)
+
+with col1:
+    file1 = st.file_uploader(
+        "📤 Upload Match File (File1)",
+        type=["xlsx", "csv"],
+        key="match_file"
+    )
+
+with col2:
+    file2 = st.file_uploader(
+        "📤 Upload Target File (File2)",
+        type=["xlsx", "csv"],
+        key="target_file"
+    )
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+if file1 and file2:
+
+    with st.spinner("🔍 Matching rows and removing..."):
+
+        df1 = pd.read_excel(file1) if file1.name.endswith(".xlsx") else pd.read_csv(file1)
+        df2 = pd.read_excel(file2) if file2.name.endswith(".xlsx") else pd.read_csv(file2)
+
+        df1 = clean_dataframe(df1)
+        df2 = clean_dataframe(df2)
+
+        if translate_on:
+            df1 = translate_hindi_df(df1)
+            df2 = translate_hindi_df(df2)
+
+        #updated_df2, report = enterprise_dedup_engine(df1, df2)
+        # # ---------- Duplicate Report Section ----------
+
+        # st.subheader("📊 Duplicate Detection Report")
+
+        # if report is not None and not report.empty:
+            
+        #     st.info(f"🔍 {len(report)} duplicate rows detected")
+
+        #     st.dataframe(
+        #         report,
+        #         use_container_width=True,
+        #         height=300
+        #     )
+
+        # else:
+        #     st.success("✅ No duplicates detected")
+
+        # run dedup engine
+        updated_df2, report = enterprise_dedup_engine(df1, df2)
+
+        # -------------------------------
+        # STEP 4 — Duplicate Preview
+        # -------------------------------
+
+        # -------------------------------
+        # STEP 4 — Duplicate Highlight Preview
+        # -------------------------------
+
+        st.subheader("🔴 Duplicate Highlight Preview")
+
+        if report is not None and not report.empty:
+
+            duplicate_indices = report["row_index"].tolist()
+
+            styled_df = highlight_duplicates(df2, duplicate_indices)
+
+            st.dataframe(
+                styled_df,
+                use_container_width=True,
+                height=400
+            )
+
+        else:
+            st.success("No duplicates detected")
+
+        # -------------------------------
+        # STEP 5 — Confirm Delete
+        # -------------------------------
+
+        confirm = st.checkbox("Confirm Delete Duplicate Rows")
+
+        if confirm:
+            st.success(f"{len(df2) - len(updated_df2)} rows will be removed")
+
+
+        # -------------------------------
+        # STEP 6 — Download Clean File
+        # -------------------------------
+
+        import io
+
+        buffer = io.BytesIO()
+        updated_df2.to_excel(buffer, index=False)
+        buffer.seek(0)
+
+        st.download_button(
+            "⬇ Download Clean File",
+            buffer,
+            "clean_data.xlsx"
+        )
+
+
+        # -------------------------------
+        # STEP 7 — Download Duplicate Report
+        # -------------------------------
+
+        if report is not None and not report.empty:
+
+            report_buffer = io.BytesIO()
+
+            report.to_excel(report_buffer, index=False)
+
+            report_buffer.seek(0)
+
+            st.download_button(
+                "⬇ Download Duplicate Report",
+                report_buffer,
+                "duplicate_report.xlsx"
+            )
+
+        st.success(f"✅ Removed {len(df2) - len(updated_df2)} matching rows")
+
+        buffer = io.BytesIO()
+        updated_df2.to_excel(buffer, index=False, engine="openpyxl")
+        buffer.seek(0)
+
+        st.download_button(
+            "⬇️ DOWNLOAD UPDATED FILE2",
+            buffer,
+            "updated_file2.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+
+
+
+
+# =====================================================
+# 🔹 AI SMART DEDUP ENGINE
+# =====================================================
+
+st.divider()
+
+st.markdown("""
+<div class="ai-title">
+🧠 AI Smart Duplicate Detection
+</div>
+
+<div class="ai-sub">
+Enterprise level dedup engine • Auto column detection • AI similarity matching
+</div>
+""",unsafe_allow_html=True)
+
+
+st.markdown('<div class="ai-card">',unsafe_allow_html=True)
+
+dedup_file = st.file_uploader(
+    "Upload Excel / CSV File",
+    type=["xlsx","csv"],
+    key="ai_dedup"
+)
+
+st.markdown('</div>',unsafe_allow_html=True)
+
+if dedup_file:
+
+    # -----------------------------
+    # READ FILE
+    # -----------------------------
+    if dedup_file.name.endswith(".xlsx"):
+        df = pd.read_excel(dedup_file)
+    else:
+        df = pd.read_csv(dedup_file)
+
+    # -----------------------------
+    # DATA INFO
+    # -----------------------------
+    col1, col2 = st.columns(2)
+
+    with col1:
+        st.metric("Total Rows", f"{len(df):,}")
+
+    with col2:
+        st.metric("Total Columns", f"{len(df.columns)}")
+
+    st.markdown("---")
+
+    # -----------------------------
+    # RUN ENGINE BUTTON
+    # -----------------------------
+    run_ai = st.button("🚀 Run AI Dedup Engine")
+
+    if run_ai:
+
+        progress_bar = st.progress(0)
+
+        with st.spinner("🤖 AI analyzing data..."):
+
+            for i in range(100):
+                time.sleep(0.01)
+                progress_bar.progress(i + 1)
+
+            cleaned_df, report = ultra_fast_dedup(df)
+
+        st.success("AI Dedup Engine Completed")
+
+        st.markdown("---")
+
+        # -----------------------------
+        # DUPLICATE REPORT
+        # -----------------------------
+        st.subheader("📊 Duplicate Detection Report")
+
+        if not report.empty:
+
+            st.metric("Duplicates Found", f"{len(report)}")
+
+            st.dataframe(
+                report,
+                use_container_width=True,
+                height=300
+            )
+
+        else:
+
+            st.success("No duplicates detected")
+
+        st.markdown("---")
+
+        # -----------------------------
+        # CLEAN DATA PREVIEW
+        # -----------------------------
+        st.subheader("🧹 Cleaned Data Preview")
+
+        st.dataframe(
+            cleaned_df.head(50),
+            use_container_width=True,
+            height=350
+        )
+
+        st.info(f"Final Rows After Cleaning: {len(cleaned_df):,}")
+
+        st.markdown("---")
+
+        # -----------------------------
+        # DOWNLOAD CLEAN FILE
+        # -----------------------------
+        import io
+
+        buffer = io.BytesIO()
+
+        cleaned_df.to_excel(buffer, index=False)
+
+        buffer.seek(0)
+
+        st.download_button(
+            "⬇ Download Clean File",
+            buffer,
+            "cleaned_data.xlsx",
+            use_container_width=True
+        )
 
 
 # =====================================================

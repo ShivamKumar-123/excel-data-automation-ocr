@@ -4,10 +4,17 @@ import pandas as pd
 import pytesseract
 import pdfplumber
 from PIL import Image
-
+import streamlit as st
 
 import cv2
 import numpy as np
+
+
+from rapidfuzz import fuzz
+import re
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
 
 # import pytesseract
 
@@ -286,11 +293,17 @@ def pdf_to_df(file):
 
 #     return df
 
+# reader = easyocr.Reader(['en'], gpu=False)
+@st.cache_resource
+def load_reader():
+    return easyocr.Reader(['en'], gpu=False)
+
 def image_to_df(file):
 
-    
+    # global reader
+    reader = load_reader()
 
-    reader = easyocr.Reader(['en'], gpu=False)
+    # reader = easyocr.Reader(['en'], gpu=False)
 
     # Read image
     file_bytes = np.asarray(bytearray(file.read()), dtype=np.uint8)
@@ -355,6 +368,380 @@ def image_to_df(file):
     df.reset_index(drop=True, inplace=True)
 
     return df
+
+
+# ================= AUTO SMART MATCH REMOVE =================
+# ================= UNIVERSAL SMART MATCH REMOVE ================
+# ================= ENTERPRISE UNIVERSAL MATCH REMOVE =================
+
+
+
+
+# -------- NORMALIZATION --------
+
+# def normalize_text(x):
+#     if not isinstance(x, str):
+#         return ""
+#     return re.sub(r"\s+", " ", x.strip().lower())
+
+
+# def normalize_phone(val):
+#     digits = re.sub(r"\D", "", str(val))
+#     return digits[-10:] if len(digits) >= 10 else ""
+
+
+# # -------- COLUMN DETECTION --------
+
+# COLUMN_PATTERNS = {
+#     "name": ["name", "fullname", "customer", "client"],
+#     "phone": ["phone", "mobile", "contact", "tel"],
+#     "email": ["email", "mail"],
+#     "company": ["company", "organisation", "org"],
+#     "address": ["address", "addr", "location"],
+# }
+
+
+# def detect_columns(columns):
+#     mapping = {}
+
+#     for field, keywords in COLUMN_PATTERNS.items():
+#         for col in columns:
+#             clean = re.sub(r"[^a-z]", "", col.lower())
+
+#             for k in keywords:
+#                 if k in clean:
+#                     mapping[field] = col
+#                     break
+
+#             if field in mapping:
+#                 break
+
+#     return mapping
+
+
+# # -------- MAIN ENGINE --------
+
+# def enterprise_dedup_engine(df_ref, df_target, name_threshold=90):
+
+#     df_ref = df_ref.copy()
+#     df_target = df_target.copy()
+
+#     ref_map = detect_columns(df_ref.columns)
+#     tgt_map = detect_columns(df_target.columns)
+
+#     # ---------- NORMALIZATION ----------
+
+#     if "phone" in ref_map:
+#         df_ref["_phone"] = df_ref[ref_map["phone"]].apply(normalize_phone)
+
+#     if "phone" in tgt_map:
+#         df_target["_phone"] = df_target[tgt_map["phone"]].apply(normalize_phone)
+
+#     if "email" in ref_map:
+#         df_ref["_email"] = df_ref[ref_map["email"]].astype(str).str.lower()
+
+#     if "email" in tgt_map:
+#         df_target["_email"] = df_target[tgt_map["email"]].astype(str).str.lower()
+
+#     if "name" in ref_map:
+#         df_ref["_name"] = df_ref[ref_map["name"]].apply(normalize_text)
+
+#     if "name" in tgt_map:
+#         df_target["_name"] = df_target[tgt_map["name"]].apply(normalize_text)
+
+#     if "company" in ref_map:
+#         df_ref["_company"] = df_ref[ref_map["company"]].apply(normalize_text)
+
+#     if "company" in tgt_map:
+#         df_target["_company"] = df_target[tgt_map["company"]].apply(normalize_text)
+
+#     remove_index = set()
+#     report = []
+
+#     # ---------- FAST PHONE MATCH ----------
+
+#     if "_phone" in df_ref.columns and "_phone" in df_target.columns:
+
+#         phone_set = set(df_ref["_phone"])
+
+#         matches = df_target[df_target["_phone"].isin(phone_set)]
+
+#         for i in matches.index:
+#             remove_index.add(i)
+#             report.append((i, "Phone Match"))
+
+#     # ---------- FAST EMAIL MATCH ----------
+
+#     if "_email" in df_ref.columns and "_email" in df_target.columns:
+
+#         email_set = set(df_ref["_email"])
+
+#         matches = df_target[df_target["_email"].isin(email_set)]
+
+#         for i in matches.index:
+#             remove_index.add(i)
+#             report.append((i, "Email Match"))
+
+#     # ---------- FUZZY NAME MATCH ----------
+
+#     if "_name" in df_ref.columns and "_name" in df_target.columns:
+
+#         for i, row_t in df_target.iterrows():
+
+#             if i in remove_index:
+#                 continue
+
+#             name_t = row_t["_name"]
+
+#             for _, row_r in df_ref.iterrows():
+
+#                 name_r = row_r["_name"]
+
+#                 score = fuzz.token_sort_ratio(name_t, name_r)
+
+#                 if score >= name_threshold:
+
+#                     remove_index.add(i)
+#                     report.append((i, f"Name Similarity {score}"))
+
+#                     break
+
+#     cleaned_df = df_target.drop(list(remove_index))
+
+#     report_df = pd.DataFrame(report, columns=["row_index", "reason"])
+
+#     return cleaned_df, report_df
+
+
+# ================= UNIVERSAL DEDUP ENGINE =================
+
+
+
+
+def normalize_text(x):
+    if not isinstance(x, str):
+        return ""
+    return re.sub(r"\s+", " ", x.strip().lower())
+
+
+def normalize_phone(val):
+    digits = re.sub(r"\D", "", str(val))
+    return digits[-10:] if len(digits) >= 10 else ""
+
+
+def detect_column(columns, keywords):
+    for col in columns:
+        c = re.sub(r"[^a-z]", "", col.lower())
+
+        for k in keywords:
+            if k in c:
+                return col
+
+    return None
+
+
+def enterprise_dedup_engine(df_ref, df_target):
+
+    df_ref = df_ref.copy()
+    df_target = df_target.copy()
+
+    name1 = detect_column(df_ref.columns, ["name","customer","client"])
+    name2 = detect_column(df_target.columns, ["name","customer","client"])
+
+    phone1 = detect_column(df_ref.columns, ["phone","mobile","contact"])
+    phone2 = detect_column(df_target.columns, ["phone","mobile","contact"])
+
+    email1 = detect_column(df_ref.columns, ["email"])
+    email2 = detect_column(df_target.columns, ["email"])
+
+    remove_index = []
+    report = []
+
+    for i, row_t in df_target.iterrows():
+
+        tname = normalize_text(row_t.get(name2,""))
+        tphone = normalize_phone(row_t.get(phone2,""))
+        temail = normalize_text(row_t.get(email2,""))
+
+        for _, row_r in df_ref.iterrows():
+
+            rname = normalize_text(row_r.get(name1,""))
+            rphone = normalize_phone(row_r.get(phone1,""))
+            remail = normalize_text(row_r.get(email1,""))
+
+            if tphone and rphone and tphone == rphone:
+                remove_index.append(i)
+                report.append((i,"Phone Match"))
+                break
+
+            if temail and remail and temail == remail:
+                remove_index.append(i)
+                report.append((i,"Email Match"))
+                break
+
+            score = fuzz.token_sort_ratio(tname, rname)
+
+            if score >= 90:
+                remove_index.append(i)
+                report.append((i,f"Name Similar {score}"))
+                break
+
+    cleaned = df_target.drop(remove_index)
+
+    report_df = pd.DataFrame(report, columns=["row_index","reason"])
+
+    return cleaned, report_df
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# ===============================
+# COLUMN DETECTION
+# ===============================
+
+def detect_columns(df):
+
+    cols = [c.lower() for c in df.columns]
+
+    phone = None
+    email = None
+    name = None
+
+    for c in df.columns:
+
+        cl = c.lower()
+
+        if not phone and any(x in cl for x in ["phone","mobile","contact"]):
+            phone = c
+
+        if not email and "mail" in cl:
+            email = c
+
+        if not name and any(x in cl for x in ["name","customer","client"]):
+            name = c
+
+    return name, phone, email
+
+
+# ===============================
+# NORMALIZERS
+# ===============================
+
+def normalize_phone(val):
+    digits = re.sub(r"\D","",str(val))
+    return digits[-10:] if len(digits) >= 10 else ""
+
+
+def normalize_text(val):
+    return str(val).lower().strip()
+
+
+# ===============================
+# ENTERPRISE DEDUP ENGINE
+# ===============================
+
+def ultra_fast_dedup(df):
+
+    df = df.copy()
+
+    name_col, phone_col, email_col = detect_columns(df)
+
+    if phone_col:
+        df["_phone"] = df[phone_col].apply(normalize_phone)
+
+    if email_col:
+        df["_email"] = df[email_col].astype(str).str.lower()
+
+    if name_col:
+        df["_name"] = df[name_col].apply(normalize_text)
+
+    # ===============================
+    # PHONE MATCH (FAST)
+    # ===============================
+
+    remove = set()
+    report = []
+
+    if "_phone" in df.columns:
+
+        dup = df[df["_phone"]!=""].duplicated("_phone",keep="first")
+
+        for idx in df[dup].index:
+            remove.add(idx)
+            report.append((idx,"Phone Duplicate"))
+
+    # ===============================
+    # EMAIL MATCH
+    # ===============================
+
+    if "_email" in df.columns:
+
+        dup = df[df["_email"]!=""].duplicated("_email",keep="first")
+
+        for idx in df[dup].index:
+            remove.add(idx)
+            report.append((idx,"Email Duplicate"))
+
+    # ===============================
+    # NAME SIMILARITY (AI MATCH)
+    # ===============================
+
+    if "_name" in df.columns:
+
+        names = df["_name"].fillna("").tolist()
+
+        vectorizer = TfidfVectorizer().fit_transform(names)
+
+        sim = cosine_similarity(vectorizer)
+
+        for i in range(len(sim)):
+
+            for j in range(i+1,len(sim)):
+
+                if sim[i,j] > 0.92:
+
+                    remove.add(j)
+                    report.append((j,"Name Similarity"))
+
+    cleaned_df = df.drop(list(remove))
+
+    cleaned_df = cleaned_df.drop(
+        columns=["_phone","_email","_name"],
+        errors="ignore"
+    )
+
+    report_df = pd.DataFrame(
+        report,
+        columns=["row_index","reason"]
+    )
+
+    return cleaned_df, report_df
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
