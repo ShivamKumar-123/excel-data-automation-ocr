@@ -1,4 +1,4 @@
-streamlit
+streamlit==1.35.0
 pandas
 numpy
 pytesseract
@@ -13,3 +13,4 @@ torch
 torchvision
 rapidfuzz
 scikit-learn
+altair==4.2.2
