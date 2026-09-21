@@ -232,21 +232,31 @@ st.markdown("""
     .tool-indigo { background: #eef2ff; color: #4f46e5; }
     .tool-cyan { background: #ecfeff; color: #0891b2; }
 
-    [data-testid="stVerticalBlockBorderWrapper"] {
+    /* Card shadow/radius, scoped via a marker (data-testid="stVerticalBlockBorderWrapper"
+       is NOT exclusive to st.container(border=True) — every st.columns() column also
+       gets this same testid, so an unscoped rule here shadows every column on every
+       page, including columns nested inside this very card). */
+    .tool-card-marker { display: none; }
+    [data-testid="stVerticalBlockBorderWrapper"]:has(.tool-card-marker) {
         border-radius: 18px !important;
         box-shadow: var(--shadow-sm);
         transition: all 0.2s ease;
     }
-    [data-testid="stVerticalBlockBorderWrapper"]:hover {
+    [data-testid="stVerticalBlockBorderWrapper"]:has(.tool-card-marker):hover {
         box-shadow: var(--shadow-md);
         transform: translateY(-2px);
     }
-    [data-testid="stVerticalBlockBorderWrapper"] .stButton > button {
-        width: 34px; height: 34px; padding: 0; border-radius: 50%;
+    /* Circular arrow buttons on dashboard tool cards: scoped via an adjacent
+       marker element (not the ambient wrapper testid, which isn't exclusive
+       to bordered containers and was leaking this style onto other buttons) */
+    .arrow-btn-marker { display: none; }
+    .arrow-btn-marker + div .stButton > button {
+        width: 34px !important; height: 34px !important; min-height: 34px !important;
+        padding: 0 !important; border-radius: 50% !important;
         background: #ffffff; color: var(--text-m) !important; border: 1px solid var(--border);
-        box-shadow: none; font-size: 0.95rem; min-height: 34px;
+        box-shadow: none; font-size: 0.95rem;
     }
-    [data-testid="stVerticalBlockBorderWrapper"] .stButton > button:hover {
+    .arrow-btn-marker + div .stButton > button:hover {
         background: var(--primary); color: #ffffff !important; border-color: var(--primary);
         transform: none;
     }
@@ -266,7 +276,8 @@ st.markdown("""
     .tool-header-desc { color: var(--text-m) !important; font-size: 0.88rem; margin-top: 0.15rem; }
 
     /* ===== Cards ===== */
-    .glass-card {
+    .glass-card-marker { display: none; }
+    [data-testid="stVerticalBlock"]:has(> [data-testid="element-container"] .glass-card-marker) {
         background: var(--surface); border: 1px solid var(--border); border-radius: 18px;
         padding: 1.7rem; margin-bottom: 1.3rem; box-shadow: var(--shadow-sm);
     }
@@ -298,9 +309,13 @@ st.markdown("""
     }
     .stDownloadButton > button:hover { background: var(--primary-tint); }
 
-    /* Sidebar nav buttons: flat list-row look */
+    /* Sidebar nav buttons: flat list-row look (explicit resets guard against the
+       circular card-arrow-button rule above matching here too on some layouts) */
     [data-testid="stSidebar"] .stButton > button {
-        text-align: left; justify-content: flex-start; font-weight: 600; font-size: 0.86rem;
+        width: 100% !important; height: auto !important; min-height: 2.5rem !important;
+        padding: 0.6rem 0.9rem !important; border-radius: 10px !important;
+        text-align: left !important; justify-content: flex-start !important;
+        font-weight: 600; font-size: 0.86rem; white-space: normal;
     }
 
     /* ===== Checkbox / toggle ===== */
@@ -324,13 +339,20 @@ st.markdown("""
     .sb-brand-sub { font-size: 0.63rem; letter-spacing: 1.4px; color: var(--text-m) !important; text-transform: uppercase; }
     .sb-collapse { color: var(--text-m) !important; font-size: 1.05rem; }
 
-    .sidebar-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin: 0.7rem 0; }
+    /* .sidebar-card-marker sits as the first element inside a real st.container();
+       :has() lets us style that container itself (not just an isolated empty div —
+       a plain open/close <div> split across separate st.markdown calls does NOT
+       nest the widgets in between, since Streamlit renders each call as its own
+       sibling DOM node). */
+    .sidebar-card-marker { display: none; }
+    [data-testid="stSidebar"] [data-testid="stVerticalBlock"]:has(> [data-testid="element-container"] .sidebar-card-marker) {
+        background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin: 0.7rem 0;
+    }
     .sidebar-card-title {
         font-size: 0.7rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
         color: var(--text-m) !important; margin-bottom: 0.6rem;
     }
     .sb-setting-label { font-size: 0.85rem; font-weight: 600; color: var(--text-h) !important; padding-top: 0.35rem; }
-    [data-testid="stSidebar"] [data-testid="stToggle"] { display: flex; justify-content: flex-end; }
 
     .sb-chip-row { display: flex; flex-wrap: wrap; gap: 0.35rem; }
     .sb-chip {
@@ -504,24 +526,22 @@ with st.sidebar:
         on_click=go_to, args=("dashboard",),
     )
 
-    st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-card-title">⚙️ Settings</div>', unsafe_allow_html=True)
+    with st.container():
+        st.markdown(
+            '<div class="sidebar-card-marker"></div><div class="sidebar-card-title">⚙️ Settings</div>',
+            unsafe_allow_html=True,
+        )
 
-    tr1, tr2 = st.columns([4, 1])
-    with tr1:
-        st.markdown('<div class="sb-setting-label">🌐 Hindi ⇄ English Translation</div>', unsafe_allow_html=True)
-    with tr2:
-        translate_on = st.toggle("Hindi translation", value=True, label_visibility="collapsed")
+        translate_on = st.toggle("🌐 Hindi ⇄ English Translation", value=True)
 
-    st.markdown('<div class="sb-setting-label" style="margin-top: 0.6rem;">🏭 Industry Preset</div>', unsafe_allow_html=True)
-    industry_choice = st.selectbox(
-        "Industry Preset",
-        INDUSTRY_PRESETS,
-        index=0,
-        label_visibility="collapsed",
-    )
-    selected_industry = None if industry_choice.startswith("Generic") else industry_choice
-    st.markdown('</div>', unsafe_allow_html=True)
+        st.markdown('<div class="sb-setting-label" style="margin-top: 0.6rem;">🏭 Industry Preset</div>', unsafe_allow_html=True)
+        industry_choice = st.selectbox(
+            "Industry Preset",
+            INDUSTRY_PRESETS,
+            index=0,
+            label_visibility="collapsed",
+        )
+        selected_industry = None if industry_choice.startswith("Generic") else industry_choice
 
     st.markdown('<div class="sidebar-card-title" style="margin-top: 0.4rem;">🧭 Quick Navigation</div>', unsafe_allow_html=True)
     for tool in TOOL_SECTIONS:
@@ -533,34 +553,34 @@ with st.sidebar:
             on_click=go_to, args=(tool["key"],),
         )
 
-    st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-card-title">✨ Core Features</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="sb-chip-row">
-        <span class="sb-chip">🌐 Hindi Translation</span>
-        <span class="sb-chip">📞 Phone Cleanup</span>
-        <span class="sb-chip">📍 Pincode Mapping</span>
-        <span class="sb-chip">🧠 AI Dedup</span>
-        <span class="sb-chip">📋 Data Quality</span>
-        <span class="sb-chip">🛠️ Column Tools</span>
-        <span class="sb-chip">🔄 Format Convert</span>
-        <span class="sb-chip">📦 Batch ZIP</span>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.container():
+        st.markdown("""
+        <div class="sidebar-card-marker"></div>
+        <div class="sidebar-card-title">✨ Core Features</div>
+        <div class="sb-chip-row">
+            <span class="sb-chip">🌐 Hindi Translation</span>
+            <span class="sb-chip">📞 Phone Cleanup</span>
+            <span class="sb-chip">📍 Pincode Mapping</span>
+            <span class="sb-chip">🧠 AI Dedup</span>
+            <span class="sb-chip">📋 Data Quality</span>
+            <span class="sb-chip">🛠️ Column Tools</span>
+            <span class="sb-chip">🔄 Format Convert</span>
+            <span class="sb-chip">📦 Batch ZIP</span>
+        </div>
+        """, unsafe_allow_html=True)
 
-    st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-card-title">📁 Supported Formats</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div class="sb-chip-row">
-        <span class="sb-chip">.xlsx</span>
-        <span class="sb-chip">.csv</span>
-        <span class="sb-chip">.pdf</span>
-        <span class="sb-chip">.jpg / .png</span>
-        <span class="sb-chip">.json</span>
-    </div>
-    """, unsafe_allow_html=True)
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.container():
+        st.markdown("""
+        <div class="sidebar-card-marker"></div>
+        <div class="sidebar-card-title">📁 Supported Formats</div>
+        <div class="sb-chip-row">
+            <span class="sb-chip">.xlsx</span>
+            <span class="sb-chip">.csv</span>
+            <span class="sb-chip">.pdf</span>
+            <span class="sb-chip">.jpg / .png</span>
+            <span class="sb-chip">.json</span>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("""
     <a class="sb-toplink" href="https://github.com/ShivamKumar-123/excel-data-automation-ocr/issues" target="_blank">
@@ -644,6 +664,7 @@ if view == "dashboard":
             for col, tool in zip(cols, row_tools):
                 with col:
                     with st.container(border=True):
+                        st.markdown('<div class="tool-card-marker"></div>', unsafe_allow_html=True)
                         icon_col, arrow_col = st.columns([5, 1])
                         with icon_col:
                             st.markdown(
@@ -651,6 +672,7 @@ if view == "dashboard":
                                 unsafe_allow_html=True,
                             )
                         with arrow_col:
+                            st.markdown('<div class="arrow-btn-marker"></div>', unsafe_allow_html=True)
                             st.button(
                                 "→",
                                 key=f"open_{tool['key']}",
@@ -672,25 +694,25 @@ elif view == "sec-1":
     tool = TOOL_BY_KEY["sec-1"]
     render_tool_header(tool)
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="glass-card-marker"></div>', unsafe_allow_html=True)
 
-    col1, col2 = st.columns([2, 1])
-    with col1:
-        single_file = st.file_uploader(
-            "📤 Upload Excel / CSV / PDF / Image",
-            type=["xlsx", "csv", "pdf", "jpg", "jpeg", "png"],
-            key="single"
-        )
-    with col2:
-        if single_file:
-            st.markdown(f"""
-            <div class="file-badge">
-                <div class="file-badge-title">📄 File Loaded</div>
-                <div class="file-badge-name">{single_file.name}</div>
-            </div>
-            """, unsafe_allow_html=True)
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            single_file = st.file_uploader(
+                "📤 Upload Excel / CSV / PDF / Image",
+                type=["xlsx", "csv", "pdf", "jpg", "jpeg", "png"],
+                key="single"
+            )
+        with col2:
+            if single_file:
+                st.markdown(f"""
+                <div class="file-badge">
+                    <div class="file-badge-title">📄 File Loaded</div>
+                    <div class="file-badge-name">{single_file.name}</div>
+                </div>
+                """, unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
     if single_file:
         with st.spinner("🔄 Processing file..."):
@@ -767,24 +789,24 @@ elif view == "sec-2":
     render_topbar(show_search=False)
     render_tool_header(TOOL_BY_KEY["sec-2"])
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="glass-card-marker"></div>', unsafe_allow_html=True)
 
-    multi_files = st.file_uploader(
-        "📤 Upload multiple files (ZIP export)",
-        type=["xlsx", "csv", "pdf", "jpg", "jpeg", "png"],
-        accept_multiple_files=True,
-        key="multi"
-    )
+        multi_files = st.file_uploader(
+            "📤 Upload multiple files (ZIP export)",
+            type=["xlsx", "csv", "pdf", "jpg", "jpeg", "png"],
+            accept_multiple_files=True,
+            key="multi"
+        )
 
-    if multi_files:
-        st.markdown(f"""
-        <div class="file-badge" style="max-width: 250px; margin: 1rem auto;">
-            <div class="file-badge-title">📦 Files Ready</div>
-            <div class="file-badge-name" style="font-size: 2rem;">{len(multi_files)}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        if multi_files:
+            st.markdown(f"""
+            <div class="file-badge" style="max-width: 250px; margin: 1rem auto;">
+                <div class="file-badge-title">📦 Files Ready</div>
+                <div class="file-badge-name" style="font-size: 2rem;">{len(multi_files)}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
     if multi_files:
         zip_buffer = io.BytesIO()
@@ -876,24 +898,24 @@ elif view == "sec-3":
     render_topbar(show_search=False)
     render_tool_header(TOOL_BY_KEY["sec-3"])
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="glass-card-marker"></div>', unsafe_allow_html=True)
 
-    merge_files = st.file_uploader(
-        "📤 Drop Files to Merge",
-        type=["xlsx", "csv"],
-        accept_multiple_files=True,
-        key="merge"
-    )
+        merge_files = st.file_uploader(
+            "📤 Drop Files to Merge",
+            type=["xlsx", "csv"],
+            accept_multiple_files=True,
+            key="merge"
+        )
 
-    if merge_files:
-        st.markdown(f"""
-        <div class="file-badge" style="max-width: 250px; margin: 1rem auto;">
-            <div class="file-badge-title">🔗 Files to Merge</div>
-            <div class="file-badge-name" style="font-size: 2rem;">{len(merge_files)}</div>
-        </div>
-        """, unsafe_allow_html=True)
+        if merge_files:
+            st.markdown(f"""
+            <div class="file-badge" style="max-width: 250px; margin: 1rem auto;">
+                <div class="file-badge-title">🔗 Files to Merge</div>
+                <div class="file-badge-name" style="font-size: 2rem;">{len(merge_files)}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
     if merge_files:
         dfs = []
@@ -937,23 +959,23 @@ elif view == "sec-4":
     render_topbar(show_search=False)
     render_tool_header(TOOL_BY_KEY["sec-4"])
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="glass-card-marker"></div>', unsafe_allow_html=True)
 
-    range_file = st.file_uploader(
-        "📤 Drop File for Extraction",
-        type=["xlsx", "csv"],
-        key="range"
-    )
+        range_file = st.file_uploader(
+            "📤 Drop File for Extraction",
+            type=["xlsx", "csv"],
+            key="range"
+        )
 
-    st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        start_row = st.number_input("Start Row", min_value=1, value=1, key="start")
-    with col2:
-        end_row = st.number_input("End Row", min_value=1, value=10, key="end")
+        col1, col2 = st.columns(2)
+        with col1:
+            start_row = st.number_input("Start Row", min_value=1, value=1, key="start")
+        with col2:
+            end_row = st.number_input("End Row", min_value=1, value=10, key="end")
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
     if range_file and start_row <= end_row:
         df = read_any_table(range_file)
@@ -987,42 +1009,42 @@ elif view == "sec-5":
     render_topbar(show_search=False)
     render_tool_header(TOOL_BY_KEY["sec-5"])
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="glass-card-marker"></div>', unsafe_allow_html=True)
 
-    col1, col2 = st.columns(2)
-    with col1:
-        file1 = st.file_uploader(
-            "📤 Upload Reference File (File 1)",
-            type=["xlsx", "csv"],
-            key="match_file"
-        )
-    with col2:
-        file2 = st.file_uploader(
-            "📤 Upload Target File (File 2)",
-            type=["xlsx", "csv"],
-            key="target_file"
-        )
+        col1, col2 = st.columns(2)
+        with col1:
+            file1 = st.file_uploader(
+                "📤 Upload Reference File (File 1)",
+                type=["xlsx", "csv"],
+                key="match_file"
+            )
+        with col2:
+            file2 = st.file_uploader(
+                "📤 Upload Target File (File 2)",
+                type=["xlsx", "csv"],
+                key="target_file"
+            )
 
-    st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
 
-    match_col1, match_col2 = st.columns([1, 2])
-    with match_col1:
-        match_on = st.multiselect(
-            "Match rows on",
-            ["phone", "email", "name"],
-            default=["phone", "email", "name"],
-            key="match_fields_mr",
-            help="Only these fields are checked for a match."
-        )
-    with match_col2:
-        name_threshold = st.slider(
-            "Name match sensitivity (%)",
-            min_value=70, max_value=100, value=90,
-            key="name_threshold_mr",
-            help="Higher = stricter (fewer, more confident fuzzy-name matches)."
-        )
+        match_col1, match_col2 = st.columns([1, 2])
+        with match_col1:
+            match_on = st.multiselect(
+                "Match rows on",
+                ["phone", "email", "name"],
+                default=["phone", "email", "name"],
+                key="match_fields_mr",
+                help="Only these fields are checked for a match."
+            )
+        with match_col2:
+            name_threshold = st.slider(
+                "Name match sensitivity (%)",
+                min_value=70, max_value=100, value=90,
+                key="name_threshold_mr",
+                help="Higher = stricter (fewer, more confident fuzzy-name matches)."
+            )
 
-    st.markdown('</div>', unsafe_allow_html=True)
 
     if file1 and file2:
         with st.spinner("🔍 Analyzing & matching rows..."):
@@ -1096,13 +1118,13 @@ elif view == "sec-6":
     render_topbar(show_search=False)
     render_tool_header(TOOL_BY_KEY["sec-6"])
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    dedup_file = st.file_uploader(
-        "📤 Upload Excel / CSV File",
-        type=["xlsx", "csv"],
-        key="ai_dedup"
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="glass-card-marker"></div>', unsafe_allow_html=True)
+        dedup_file = st.file_uploader(
+            "📤 Upload Excel / CSV File",
+            type=["xlsx", "csv"],
+            key="ai_dedup"
+        )
 
     if dedup_file:
         df = read_any_table(dedup_file)
@@ -1189,13 +1211,13 @@ elif view == "sec-7":
     render_topbar(show_search=False)
     render_tool_header(TOOL_BY_KEY["sec-7"])
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    dq_file = st.file_uploader(
-        "📤 Upload File to Inspect",
-        type=["xlsx", "csv"],
-        key="dq_file"
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="glass-card-marker"></div>', unsafe_allow_html=True)
+        dq_file = st.file_uploader(
+            "📤 Upload File to Inspect",
+            type=["xlsx", "csv"],
+            key="dq_file"
+        )
 
     if dq_file:
         raw_df = read_any_table(dq_file)
@@ -1258,13 +1280,13 @@ elif view == "sec-8":
     render_topbar(show_search=False)
     render_tool_header(TOOL_BY_KEY["sec-8"])
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
-    ct_file = st.file_uploader(
-        "📤 Upload File to Edit",
-        type=["xlsx", "csv"],
-        key="col_tools_file"
-    )
-    st.markdown('</div>', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="glass-card-marker"></div>', unsafe_allow_html=True)
+        ct_file = st.file_uploader(
+            "📤 Upload File to Edit",
+            type=["xlsx", "csv"],
+            key="col_tools_file"
+        )
 
     if ct_file:
         ct_df = read_any_table(ct_file)
@@ -1339,29 +1361,29 @@ elif view == "sec-9":
     render_topbar(show_search=False)
     render_tool_header(TOOL_BY_KEY["sec-9"])
 
-    st.markdown('<div class="glass-card">', unsafe_allow_html=True)
+    with st.container():
+        st.markdown('<div class="glass-card-marker"></div>', unsafe_allow_html=True)
 
-    conv_files = st.file_uploader(
-        "📤 Upload Excel / CSV file(s)",
-        type=["xlsx", "csv"],
-        accept_multiple_files=True,
-        key="conv_files"
-    )
-
-    cv1, cv2, cv3 = st.columns(3)
-    with cv1:
-        output_format = st.selectbox("Convert to", ["xlsx", "csv", "json"], key="conv_format")
-    with cv2:
-        split_sheets = st.checkbox("Split multi-sheet workbooks", key="conv_split")
-    with cv3:
-        combine_files = st.checkbox(
-            "Combine files into one workbook",
-            key="conv_combine",
-            disabled=(output_format != "xlsx"),
-            help="Only available when converting to XLSX."
+        conv_files = st.file_uploader(
+            "📤 Upload Excel / CSV file(s)",
+            type=["xlsx", "csv"],
+            accept_multiple_files=True,
+            key="conv_files"
         )
 
-    st.markdown('</div>', unsafe_allow_html=True)
+        cv1, cv2, cv3 = st.columns(3)
+        with cv1:
+            output_format = st.selectbox("Convert to", ["xlsx", "csv", "json"], key="conv_format")
+        with cv2:
+            split_sheets = st.checkbox("Split multi-sheet workbooks", key="conv_split")
+        with cv3:
+            combine_files = st.checkbox(
+                "Combine files into one workbook",
+                key="conv_combine",
+                disabled=(output_format != "xlsx"),
+                help="Only available when converting to XLSX."
+            )
+
 
     if conv_files:
         if combine_files and output_format == "xlsx":
