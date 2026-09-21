@@ -80,6 +80,10 @@ def go_to(view_key):
     st.session_state.view = view_key
 
 
+def clear_search():
+    st.session_state.dash_search = ""
+
+
 if "view" not in st.session_state:
     st.session_state.view = "dashboard"
 
@@ -237,6 +241,15 @@ st.markdown("""
         box-shadow: var(--shadow-md);
         transform: translateY(-2px);
     }
+    [data-testid="stVerticalBlockBorderWrapper"] .stButton > button {
+        width: 34px; height: 34px; padding: 0; border-radius: 50%;
+        background: #ffffff; color: var(--text-m) !important; border: 1px solid var(--border);
+        box-shadow: none; font-size: 0.95rem; min-height: 34px;
+    }
+    [data-testid="stVerticalBlockBorderWrapper"] .stButton > button:hover {
+        background: var(--primary); color: #ffffff !important; border-color: var(--primary);
+        transform: none;
+    }
 
     /* ===== Tool view header (replaces old dark section-header) ===== */
     .tool-header {
@@ -316,6 +329,8 @@ st.markdown("""
         font-size: 0.7rem; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
         color: var(--text-m) !important; margin-bottom: 0.6rem;
     }
+    .sb-setting-label { font-size: 0.85rem; font-weight: 600; color: var(--text-h) !important; padding-top: 0.35rem; }
+    [data-testid="stSidebar"] [data-testid="stToggle"] { display: flex; justify-content: flex-end; }
 
     .sb-chip-row { display: flex; flex-wrap: wrap; gap: 0.35rem; }
     .sb-chip {
@@ -478,7 +493,6 @@ with st.sidebar:
                     <div class="sb-brand-sub">Control Panel</div>
                 </div>
             </div>
-            <div class="sb-collapse">«</div>
         </div>
     """, unsafe_allow_html=True)
 
@@ -493,17 +507,18 @@ with st.sidebar:
     st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
     st.markdown('<div class="sidebar-card-title">⚙️ Settings</div>', unsafe_allow_html=True)
 
-    translate_on = st.toggle(
-        "🔤 Hindi → English Translation",
-        value=True,
-        help="Automatically translate Hindi text to English"
-    )
+    tr1, tr2 = st.columns([4, 1])
+    with tr1:
+        st.markdown('<div class="sb-setting-label">🌐 Hindi ⇄ English Translation</div>', unsafe_allow_html=True)
+    with tr2:
+        translate_on = st.toggle("Hindi translation", value=True, label_visibility="collapsed")
 
+    st.markdown('<div class="sb-setting-label" style="margin-top: 0.6rem;">🏭 Industry Preset</div>', unsafe_allow_html=True)
     industry_choice = st.selectbox(
-        "🏭 Industry Preset",
+        "Industry Preset",
         INDUSTRY_PRESETS,
         index=0,
-        help="Sharpens column detection for that industry's typical sheet layout. Generic auto-detection always runs underneath."
+        label_visibility="collapsed",
     )
     selected_industry = None if industry_choice.startswith("Generic") else industry_choice
     st.markdown('</div>', unsafe_allow_html=True)
@@ -598,17 +613,21 @@ if view == "dashboard":
         if os.path.exists(HERO_ILLUSTRATION_PATH):
             st.image(HERO_ILLUSTRATION_PATH, use_column_width=True)
 
-    st.markdown("""
-    <div style="margin-top: 0.6rem;">
-        <div class="dashboard-eyebrow">Get Started</div>
-    </div>
-    <div class="dashboard-heading-row">
-        <div>
-            <h2>Choose a Tool to Begin</h2>
-            <p>Powerful data processing tools, built for every industry.</p>
+    st.markdown('<div class="dashboard-eyebrow">Get Started</div>', unsafe_allow_html=True)
+
+    head_col1, head_col2 = st.columns([4, 1])
+    with head_col1:
+        st.markdown("""
+        <div class="dashboard-heading-row">
+            <div>
+                <h2>Choose a Tool to Begin</h2>
+                <p>Powerful data processing tools, built for every industry.</p>
+            </div>
         </div>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+    with head_col2:
+        st.markdown('<div style="height: 1.9rem;"></div>', unsafe_allow_html=True)
+        st.button("View All Tools →", key="view_all_tools", on_click=clear_search, use_container_width=True)
 
     q = (search_query or "").strip().lower()
     filtered_tools = [
@@ -625,19 +644,22 @@ if view == "dashboard":
             for col, tool in zip(cols, row_tools):
                 with col:
                     with st.container(border=True):
+                        icon_col, arrow_col = st.columns([5, 1])
+                        with icon_col:
+                            st.markdown(
+                                f'<div class="tool-icon {tool["accent"]}">{tool["icon"]}</div>',
+                                unsafe_allow_html=True,
+                            )
+                        with arrow_col:
+                            st.button(
+                                "→",
+                                key=f"open_{tool['key']}",
+                                on_click=go_to, args=(tool["key"],),
+                            )
                         st.markdown(f"""
-                        <div class="tool-card-header">
-                            <div class="tool-icon {tool['accent']}">{tool['icon']}</div>
-                        </div>
                         <div class="tool-card-heading"><span class="tool-num">{tool['num']}</span>{tool['title']}</div>
                         <div class="tool-card-desc">{tool['desc']}</div>
                         """, unsafe_allow_html=True)
-                        st.button(
-                            "Open →",
-                            key=f"open_{tool['key']}",
-                            use_container_width=True,
-                            on_click=go_to, args=(tool["key"],),
-                        )
 
     render_footer()
 
