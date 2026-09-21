@@ -253,9 +253,13 @@ st.markdown("""
         border-radius: 18px !important;
         box-shadow: var(--shadow-sm);
         transition: all 0.2s ease;
+        margin-bottom: 0.85rem;
     }
+    /* A tighter, more contained lift than --shadow-md: the default row gap
+       between card grid rows is only ~16px, so a wider hover shadow bled
+       visually into the row below. */
     [data-testid="stVerticalBlockBorderWrapper"]:has(.tool-card-marker):hover {
-        box-shadow: var(--shadow-md);
+        box-shadow: 0 6px 16px rgba(15, 23, 42, 0.10);
         transform: translateY(-2px);
     }
     /* Circular arrow buttons on dashboard tool cards: scoped via an adjacent
@@ -314,6 +318,12 @@ st.markdown("""
         box-shadow: none;
     }
     .stButton > button[kind="secondary"]:hover { background: #f8fafc; border-color: #cbd5e1; }
+
+    /* The blanket [data-testid="stSidebar"] * color rule below recolors every
+       descendant, including the <div> Streamlit wraps button labels in - this
+       overrides that specifically for primary (active nav) buttons so their
+       label stays readable white-on-blue instead of dark-gray-on-blue. */
+    [data-testid="stSidebar"] .stButton > button[kind="primary"] * { color: #ffffff !important; }
 
     .stDownloadButton > button {
         background: #ffffff; color: var(--primary) !important; border: 1.5px solid var(--primary);
