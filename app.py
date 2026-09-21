@@ -6,6 +6,9 @@ import os
 import time
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FAVICON_PATH = os.path.join(BASE_DIR, "assets", "favicon.png")
+
 
 from main import (
     clean_dataframe,
@@ -51,7 +54,7 @@ def highlight_duplicates(df, duplicate_indices):
 # ================= PAGE CONFIG =================
 st.set_page_config(
     page_title="DataFlow Pro — Smart Data Automation",
-    page_icon="⚡",
+    page_icon=FAVICON_PATH if os.path.exists(FAVICON_PATH) else "⚡",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -243,6 +246,7 @@ st.markdown("""
         align-items: center;
         gap: 1.5rem;
         animation: sectionSlide 0.6s ease-out;
+        scroll-margin-top: 1.5rem;
     }
 
     @keyframes sectionSlide {
@@ -401,6 +405,148 @@ st.markdown("""
         padding: 1.2rem;
         border-radius: 12px;
         margin: 0.8rem 0;
+        transition: all 0.25s ease;
+    }
+
+    .sidebar-card:hover {
+        border-color: rgba(139, 92, 246, 0.25);
+        background: rgba(139, 92, 246, 0.09);
+    }
+
+    .sidebar-card-title {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 0.75rem;
+        font-weight: 700;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        color: #a78bfa !important;
+        margin-bottom: 0.7rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    /* ===== Sidebar Brand ===== */
+    .sb-brand {
+        display: flex;
+        align-items: center;
+        gap: 0.8rem;
+        padding: 0.6rem 0 1.2rem;
+    }
+
+    .sb-avatar {
+        width: 42px;
+        height: 42px;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #7c3aed 0%, #06b6d4 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.3rem;
+        flex-shrink: 0;
+        box-shadow: 0 6px 18px rgba(139, 92, 246, 0.4);
+    }
+
+    .sb-brand-text .sb-brand-title {
+        font-family: 'Space Grotesk', sans-serif;
+        font-size: 1.15rem;
+        font-weight: 700;
+        color: #f1f5f9 !important;
+        letter-spacing: 0.3px;
+        line-height: 1.2;
+    }
+
+    .sb-brand-text .sb-brand-sub {
+        font-size: 0.7rem;
+        color: #64748b !important;
+        letter-spacing: 1.5px;
+        text-transform: uppercase;
+        margin-top: 2px;
+    }
+
+    /* ===== Sidebar Quick Nav ===== */
+    .sb-nav {
+        display: flex;
+        flex-direction: column;
+        gap: 0.15rem;
+    }
+
+    .sb-nav a {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        padding: 0.45rem 0.6rem;
+        border-radius: 8px;
+        font-size: 0.82rem;
+        font-weight: 500;
+        color: #cbd5e1 !important;
+        text-decoration: none !important;
+        transition: all 0.2s ease;
+    }
+
+    .sb-nav a:hover {
+        background: rgba(139, 92, 246, 0.14);
+        color: #e2e8f0 !important;
+        transform: translateX(2px);
+    }
+
+    .sb-nav a .sb-nav-num {
+        font-family: 'JetBrains Mono', monospace;
+        font-size: 0.72rem;
+        color: #8b5cf6 !important;
+        min-width: 18px;
+    }
+
+    /* ===== Sidebar Chips ===== */
+    .sb-chip-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.4rem;
+    }
+
+    .sb-chip {
+        font-size: 0.72rem;
+        font-weight: 600;
+        padding: 0.3rem 0.65rem;
+        border-radius: 20px;
+        background: rgba(6, 182, 212, 0.1);
+        border: 1px solid rgba(6, 182, 212, 0.25);
+        color: #67e8f9 !important;
+        white-space: nowrap;
+    }
+
+    /* ===== Sidebar Footer ===== */
+    .sb-footer {
+        text-align: center;
+        padding: 1rem 0 0.5rem;
+    }
+
+    .sb-version-badge {
+        display: inline-block;
+        font-size: 0.7rem;
+        font-weight: 700;
+        letter-spacing: 1px;
+        padding: 0.25rem 0.8rem;
+        border-radius: 20px;
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        color: #6ee7b7 !important;
+        margin-bottom: 0.6rem;
+    }
+
+    .sb-footer a {
+        color: #94a3b8 !important;
+        font-size: 0.78rem;
+        text-decoration: none !important;
+    }
+
+    .sb-footer a:hover {
+        color: #a78bfa !important;
+    }
+
+    /* ===== Modern Toggle ===== */
+    [data-testid="stToggle"] label {
+        font-weight: 500;
     }
 
     /* ===== Number Input ===== */
@@ -635,49 +781,24 @@ st.divider()
 # ================= SIDEBAR =================
 with st.sidebar:
     st.markdown("""
-        <div style="text-align: center; padding: 15px 0;">
-            <div style="font-family: 'Space Grotesk', sans-serif; font-size: 1.3rem; font-weight: 700;
-                        color: #a78bfa; letter-spacing: 1px;">
-                ⚡ DataFlow Pro
-            </div>
-            <div style="font-size: 0.75rem; color: #64748b; margin-top: 4px; letter-spacing: 2px; text-transform: uppercase;">
-                Control Panel
+        <div class="sb-brand">
+            <div class="sb-avatar">📊</div>
+            <div class="sb-brand-text">
+                <div class="sb-brand-title">DataFlow Pro</div>
+                <div class="sb-brand-sub">Control Panel</div>
             </div>
         </div>
     """, unsafe_allow_html=True)
 
     st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
-    st.markdown("""
-    **✨ Core Features**
-    - ✔ Hindi → English translation
-    - ✔ Phone normalization
-    - ✔ Pincode → State & District
-    - ✔ Smart duplicate removal
-    - ✔ Data quality validation
-    - ✔ Column rename / reorder / find & replace
-    - ✔ Excel / CSV / JSON conversion
-    - ✔ Multi-format support
-    - ✔ Batch ZIP export
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-card-title">⚙️ Settings</div>', unsafe_allow_html=True)
 
-    st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
-    st.markdown("""
-    **📁 Supported Formats**
-    - 📊 Excel (`.xlsx`)
-    - 📄 CSV (`.csv`)
-    - 📑 PDF (`.pdf`)
-    - 🖼️ Images (`.jpg`, `.png`)
-    """)
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    translate_on = st.checkbox(
-        "🔤 Enable Hindi Translation",
+    translate_on = st.toggle(
+        "🔤 Hindi → English Translation",
         value=True,
         help="Automatically translate Hindi text to English"
     )
 
-    st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
     industry_choice = st.selectbox(
         "🏭 Industry Preset",
         INDUSTRY_PRESETS,
@@ -688,6 +809,52 @@ with st.sidebar:
     st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-card-title">🧭 Quick Navigation</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="sb-nav">
+        <a href="#sec-1"><span class="sb-nav-num">01</span> Single File Processing</a>
+        <a href="#sec-2"><span class="sb-nav-num">02</span> Batch Processing</a>
+        <a href="#sec-3"><span class="sb-nav-num">03</span> Data Fusion</a>
+        <a href="#sec-4"><span class="sb-nav-num">04</span> Precision Extract</a>
+        <a href="#sec-5"><span class="sb-nav-num">05</span> Match &amp; Remove</a>
+        <a href="#sec-6"><span class="sb-nav-num">06</span> AI Smart Dedup</a>
+        <a href="#sec-7"><span class="sb-nav-num">07</span> Data Quality Report</a>
+        <a href="#sec-8"><span class="sb-nav-num">08</span> Column Tools</a>
+        <a href="#sec-9"><span class="sb-nav-num">09</span> Format Converter</a>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-card-title">✨ Core Features</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="sb-chip-row">
+        <span class="sb-chip">🌐 Hindi Translation</span>
+        <span class="sb-chip">📞 Phone Cleanup</span>
+        <span class="sb-chip">📍 Pincode Mapping</span>
+        <span class="sb-chip">🧠 AI Dedup</span>
+        <span class="sb-chip">📋 Data Quality</span>
+        <span class="sb-chip">🛠️ Column Tools</span>
+        <span class="sb-chip">🔄 Format Convert</span>
+        <span class="sb-chip">📦 Batch ZIP</span>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
+    st.markdown('<div class="sidebar-card-title">📁 Supported Formats</div>', unsafe_allow_html=True)
+    st.markdown("""
+    <div class="sb-chip-row">
+        <span class="sb-chip">.xlsx</span>
+        <span class="sb-chip">.csv</span>
+        <span class="sb-chip">.pdf</span>
+        <span class="sb-chip">.jpg / .png</span>
+        <span class="sb-chip">.json</span>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+
+    st.markdown('<div class="sidebar-card">', unsafe_allow_html=True)
     st.markdown("""
     **💡 Pro Tip**
 
@@ -695,12 +862,19 @@ with st.sidebar:
     """)
     st.markdown('</div>', unsafe_allow_html=True)
 
+    st.markdown("""
+    <div class="sb-footer">
+        <div class="sb-version-badge">v3.0 · PRO</div><br>
+        <a href="https://github.com/ShivamKumar-123/excel-data-automation-ocr" target="_blank">⭐ View on GitHub</a>
+    </div>
+    """, unsafe_allow_html=True)
+
 
 # =====================================================
 # 🔹 SECTION 1: SINGLE FILE CLEAN
 # =====================================================
 st.markdown("""
-    <div class="section-header">
+    <div class="section-header" id="sec-1">
         <div class="section-num">01</div>
         <div class="section-info">
             <div class="section-title">Single File Processing</div>
@@ -802,7 +976,7 @@ if single_file:
 st.divider()
 
 st.markdown("""
-    <div class="section-header">
+    <div class="section-header" id="sec-2">
         <div class="section-num">02</div>
         <div class="section-info">
             <div class="section-title">Batch Processing</div>
@@ -917,7 +1091,7 @@ if multi_files:
 st.divider()
 
 st.markdown("""
-    <div class="section-header">
+    <div class="section-header" id="sec-3">
         <div class="section-num">03</div>
         <div class="section-info">
             <div class="section-title">Data Fusion</div>
@@ -984,7 +1158,7 @@ if merge_files:
 st.divider()
 
 st.markdown("""
-    <div class="section-header">
+    <div class="section-header" id="sec-4">
         <div class="section-num">04</div>
         <div class="section-info">
             <div class="section-title">Precision Extract</div>
@@ -1040,7 +1214,7 @@ elif range_file and start_row > end_row:
 st.divider()
 
 st.markdown("""
-    <div class="section-header">
+    <div class="section-header" id="sec-5">
         <div class="section-num">05</div>
         <div class="section-info">
             <div class="section-title">Match & Remove</div>
@@ -1157,7 +1331,7 @@ if file1 and file2:
 st.divider()
 
 st.markdown("""
-    <div class="section-header">
+    <div class="section-header" id="sec-6">
         <div class="section-num">06</div>
         <div class="section-info">
             <div class="section-title">🧠 AI Smart Dedup</div>
@@ -1261,7 +1435,7 @@ if dedup_file:
 st.divider()
 
 st.markdown("""
-    <div class="section-header">
+    <div class="section-header" id="sec-7">
         <div class="section-num">07</div>
         <div class="section-info">
             <div class="section-title">📋 Data Quality Report</div>
@@ -1336,7 +1510,7 @@ if dq_file:
 st.divider()
 
 st.markdown("""
-    <div class="section-header">
+    <div class="section-header" id="sec-8">
         <div class="section-num">08</div>
         <div class="section-info">
             <div class="section-title">🛠️ Column Tools</div>
@@ -1423,7 +1597,7 @@ if ct_file:
 st.divider()
 
 st.markdown("""
-    <div class="section-header">
+    <div class="section-header" id="sec-9">
         <div class="section-num">09</div>
         <div class="section-info">
             <div class="section-title">🔄 Format Converter</div>
