@@ -340,6 +340,13 @@ st.markdown("""
     [data-testid="stSidebar"] * { color: var(--text-b) !important; }
     [data-testid="stSidebar"] h1, [data-testid="stSidebar"] h2, [data-testid="stSidebar"] h3 { color: var(--text-h) !important; }
 
+    /* Streamlit reserves a tall header row for an optional logo we don't use
+       (stLogoSpacer) plus its own padding, leaving what looks like an empty
+       white box above our brand row. Shrink it down to just the collapse
+       control instead of hiding it (that control's functionality stays). */
+    [data-testid="stSidebarHeader"] { padding: 0.4rem 1rem 0 !important; min-height: 0 !important; }
+    [data-testid="stLogoSpacer"] { display: none !important; }
+
     .sb-brand { display: flex; align-items: center; justify-content: space-between; padding: 0.3rem 0 1rem; border-bottom: 1px solid var(--border); margin-bottom: 0.8rem; }
     .sb-brand-left { display: flex; align-items: center; gap: 0.7rem; }
     .sb-avatar {
