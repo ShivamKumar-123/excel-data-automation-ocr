@@ -122,6 +122,18 @@ st.markdown("""
 
     .stApp { background: var(--bg); }
 
+    /* Give the main content comfortable side/top gutters — Streamlit's own
+       default block-container padding is too thin, so text and cards were
+       sitting flush against the browser edge, especially with the sidebar
+       collapsed. */
+    .block-container {
+        padding-top: 2rem !important;
+        padding-bottom: 3rem !important;
+        padding-left: clamp(1.5rem, 4vw, 3.5rem) !important;
+        padding-right: clamp(1.5rem, 4vw, 3.5rem) !important;
+        max-width: 1600px;
+    }
+
     h1, h2, h3, h4, h5, h6 { font-family: 'Space Grotesk', sans-serif !important; color: var(--text-h) !important; }
     p, span, div, label { color: var(--text-b); }
 
